@@ -6,6 +6,4 @@ gunicorn
 python-multipart
 pillow
 numpy
-scikit-learn
 pydantic
-pandas
