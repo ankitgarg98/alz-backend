@@ -1,7 +1,7 @@
 torch
 torchvision
 fastapi
-uvicorn
+uvicorn[standard]
 gunicorn
 python-multipart
 pillow
