@@ -15,8 +15,6 @@ from utils import transform, CLASS_NAMES
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "my_backend" / "siamese_capsule_finetuned.pth"
 REF_PATH   = BASE_DIR / "my_backend" / "reference_embeddings_vecs_finetuned.pt"
-STATIC_DIR = BASE_DIR / "static"
-
 # ---------- Device ----------
 device = torch.device("cpu")
 
