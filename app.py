@@ -77,6 +77,18 @@ async def predict_api(file: UploadFile = File(...)):
                 {"class": c, "score": round(close[i], 2)} for i, c in enumerate(CLASS_NAMES)
             ]
         }
+@app.get("/check-packages")
+def check_packages():
+    try:
+        import uvicorn
+        import fastapi
+        return {
+            "uvicorn": uvicorn.__version__,
+            "fastapi": fastapi.__version__,
+            "status": "success"
+        }
+    except ImportError as e:
+        return {"status": "failed", "error": str(e)}
 
 # ---------- Static (only if folder exists) ----------
 if STATIC_DIR.exists():
