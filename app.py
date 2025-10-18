@@ -1,5 +1,7 @@
 # app.py
 import io
+from pathlib import Path
+
 import torch
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,19 +11,32 @@ from PIL import Image
 from model import SiameseCapsuleNetwork, load_model, load_references
 from utils import transform, CLASS_NAMES
 
+# ---------- Paths (robust to Azure's working dir) ----------
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "my_backend" / "siamese_capsule_finetuned.pth"
+REF_PATH   = BASE_DIR / "my_backend" / "reference_embeddings_vecs_finetuned.pt"
+STATIC_DIR = BASE_DIR / "static"
+
+# ---------- Device ----------
 device = torch.device("cpu")
-MODEL_PATH = "my_backend/siamese_capsule_finetuned.pth"
-REF_PATH   = "my_backend/reference_embeddings_vecs_finetuned.pt"
 
-# Load artifacts on import (ok for your use-case)
-model = load_model(MODEL_PATH, device)
-reference_embeddings = load_references(REF_PATH, device, model)
+# (Optional) fewer CPU threads on shared plans
+# torch.set_num_threads(1)
 
+# ---------- Load artifacts ----------
+# Print actual resolved paths so you can see them in Azure Log Stream if anything fails
+print(f"[BOOT] Loading model from: {MODEL_PATH}")
+print(f"[BOOT] Loading references from: {REF_PATH}")
+
+model = load_model(str(MODEL_PATH), device)
+reference_embeddings = load_references(str(REF_PATH), device, model)
+
+# ---------- FastAPI ----------
 app = FastAPI(title="Alzheimer MRI Classifier API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to your domain in prod
+    allow_origins=["*"],   # tighten for prod
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,11 +57,14 @@ async def predict_api(file: UploadFile = File(...)):
         d_means = []
         for cls in range(4):
             refs = reference_embeddings[cls]
-            ds = [torch.nn.functional.pairwise_distance(
+            ds = [
+                torch.nn.functional.pairwise_distance(
                     test_vec.unsqueeze(0),
                     r.unsqueeze(0),
                     p=2
-                  ).item() for r in refs]
+                ).item()
+                for r in refs
+            ]
             d_means.append(sum(ds) / len(ds))
 
         inv = 1.0 / (torch.tensor(d_means) + 1e-8)
@@ -60,5 +78,8 @@ async def predict_api(file: UploadFile = File(...)):
             ]
         }
 
-# ✅ Mount SPA last so it doesn't shadow /predict or /docs
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+# ---------- Static (only if folder exists) ----------
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+else:
+    print(f"[BOOT] Warning: static directory not found at {STATIC_DIR}. Skipping mount.")
